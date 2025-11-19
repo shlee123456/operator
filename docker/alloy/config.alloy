@@ -1,0 +1,52 @@
+// Alloy configuration file for collecting metrics and logs
+
+// Prometheus metrics collection
+prometheus.scrape "default" {
+  targets = [
+    {"__address__" = "prometheus:9090"},
+    {"__address__" = "grafana:3000"},
+    {"__address__" = "loki:3100"},
+    {"__address__" = "alloy:12345"},
+  ]
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+// Remote write to Prometheus
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+// Log collection from Docker containers
+loki.source.docker "default" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = []
+  forward_to = [loki.write.default.receiver]
+}
+
+// Write logs to Loki
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+// System logs collection
+loki.source.file "system_logs" {
+  targets = [
+    {__path__ = "/var/log/*.log"},
+    {__path__ = "/var/log/syslog"},
+  ]
+  forward_to = [loki.write.default.receiver]
+}
+
+// Process exporter for system metrics
+prometheus.exporter.unix "default" {
+  include_exporter_metrics = true
+}
+
+prometheus.scrape "unix" {
+  targets    = prometheus.exporter.unix.default.targets
+  forward_to = [prometheus.remote_write.default.receiver]
+}

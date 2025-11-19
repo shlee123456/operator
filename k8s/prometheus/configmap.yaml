@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+    scrape_configs:
+      # Node Exporter: 서버의 시스템 메트릭 수집
+      - job_name: 'node_exporter'
+        static_configs:
+          - targets: ['10.0.1.10:9100']
+            labels:
+              instance: 'server-1'
+              domainname: 'example'
+          - targets: ['10.0.1.20:9100']
+            labels:
+              instance: 'server-2'
+              domainname: 'example'
+          - targets: ['10.0.1.30:9100']
+            labels:
+              instance: 'server-3'
+              domainname: 'example'
+
+      # cAdvisor: Docker 컨테이너 메트릭 수집
+      - job_name: 'cadvisor'
+        static_configs:
+          - targets: ['10.0.1.30:8080']
+            labels:
+              instance: 'server-3'
+              domainname: 'example'

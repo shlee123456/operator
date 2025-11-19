@@ -1,0 +1,35 @@
+apiVersion: 1
+
+providers:
+  # 인프라 모니터링 대시보드 폴더
+  - name: 'infrastructure'
+    orgId: 1
+    folder: '인프라 모니터링'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/infrastructure
+
+  # 애플리케이션 모니터링 대시보드 폴더
+  - name: 'application'
+    orgId: 1
+    folder: '애플리케이션 모니터링'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/application
+
+  # 로그 분석 대시보드 폴더
+  - name: 'logs'
+    orgId: 1
+    folder: '로그 분석'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/logs

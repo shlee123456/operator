@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-alerts
+  namespace: monitoring
+data:
+  alerts.yml: |
+    groups:
+    # Infrastructure Alerts
+    - name: infrastructure
+      interval: 30s
+      rules:
+      - alert: NodeDown
+        expr: up{job="node-exporter"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "노드 다운: {{ $labels.instance }}"
+          description: "{{ $labels.instance }} 노드가 5분 이상 응답하지 않습니다."
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 CPU 사용률: {{ $labels.instance }}"
+          description: "{{ $labels.instance }} 노드의 CPU 사용률이 {{ $value | humanize }}%입니다."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 메모리 사용률: {{ $labels.instance }}"
+          description: "{{ $labels.instance }} 노드의 메모리 사용률이 {{ $value | humanize }}%입니다."
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs|vfat"} / node_filesystem_size_bytes) * 100 < 15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 공간 부족: {{ $labels.instance }}"
+          description: "{{ $labels.instance }}의 {{ $labels.mountpoint }} 마운트 포인트에 {{ $value | humanize }}% 공간만 남았습니다."
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs|squashfs|vfat"} / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "디스크 공간 위험: {{ $labels.instance }}"
+          description: "{{ $labels.instance }}의 {{ $labels.mountpoint }}에 {{ $value | humanize }}% 공간만 남았습니다. 즉시 조치가 필요합니다."
+
+    # Kubernetes Alerts
+    - name: kubernetes
+      interval: 30s
+      rules:
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod 재시작 반복: {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "{{ $labels.namespace }}/{{ $labels.pod }} Pod가 계속 재시작되고 있습니다."
+
+      - alert: PodNotReady
+        expr: kube_pod_status_phase{phase!~"Running|Succeeded"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod 준비 안됨: {{ $labels.namespace }}/{{ $labels.pod }}"
+          description: "{{ $labels.namespace }}/{{ $labels.pod }} Pod가 15분 이상 준비되지 않았습니다."
+
+      - alert: DeploymentReplicasMismatch
+        expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Deployment 레플리카 불일치: {{ $labels.namespace }}/{{ $labels.deployment }}"
+          description: "{{ $labels.namespace }}/{{ $labels.deployment }}의 레플리카가 원하는 상태가 아닙니다."
+
+      - alert: PVCPending
+        expr: kube_persistentvolumeclaim_status_phase{phase="Pending"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PVC Pending 상태: {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}"
+          description: "{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} PVC가 10분 이상 Pending 상태입니다."
+
+    # Application Alerts
+    - name: application
+      interval: 30s
+      rules:
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) by (service) / sum(rate(http_requests_total[5m])) by (service)) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "높은 에러율: {{ $labels.service }}"
+          description: "{{ $labels.service }}의 에러율이 {{ $value | humanize }}%입니다."
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "높은 지연시간: {{ $labels.service }}"
+          description: "{{ $labels.service }}의 95 percentile 응답시간이 {{ $value | humanize }}초입니다."
+
+      - alert: LowRequestRate
+        expr: sum(rate(http_requests_total[5m])) by (service) < 10
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "낮은 요청률: {{ $labels.service }}"
+          description: "{{ $labels.service }}의 요청률이 비정상적으로 낮습니다 ({{ $value | humanize }} req/s)."
+
+    # Database Alerts
+    - name: database
+      interval: 30s
+      rules:
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL 다운: {{ $labels.instance }}"
+          description: "{{ $labels.instance }} PostgreSQL이 응답하지 않습니다."
+
+      - alert: PostgreSQLTooManyConnections
+        expr: (sum by (instance) (pg_stat_activity_count) / sum by (instance) (pg_settings_max_connections)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL 연결 수 높음: {{ $labels.instance }}"
+          description: "{{ $labels.instance }}의 연결 수가 최대의 {{ $value | humanize }}%입니다."
+
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis 다운: {{ $labels.instance }}"
+          description: "{{ $labels.instance }} Redis가 응답하지 않습니다."
+
+      - alert: RedisMemoryHigh
+        expr: (redis_memory_used_bytes / redis_memory_max_bytes) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 메모리 부족: {{ $labels.instance }}"
+          description: "{{ $labels.instance }} Redis의 메모리 사용률이 {{ $value | humanize }}%입니다."
+
+    # Prometheus Self-Monitoring
+    - name: prometheus
+      interval: 30s
+      rules:
+      - alert: PrometheusConfigReloadFailed
+        expr: prometheus_config_last_reload_successful == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus 설정 리로드 실패"
+          description: "Prometheus 설정 리로드가 실패했습니다."
+
+      - alert: PrometheusTSDBCompactionsFailed
+        expr: rate(prometheus_tsdb_compactions_failed_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus TSDB 압축 실패"
+          description: "Prometheus TSDB 압축이 실패하고 있습니다."
+
+      - alert: PrometheusTargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus 타겟 다운: {{ $labels.job }}"
+          description: "{{ $labels.job }}의 {{ $labels.instance }} 타겟이 5분 이상 다운되었습니다."

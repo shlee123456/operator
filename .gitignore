@@ -1,0 +1,46 @@
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+docker-compose.override.yml
+
+# Kubernetes
+*.kubeconfig
+
+# Grafana
+grafana/data/
+grafana/logs/
+
+# Prometheus
+prometheus/data/
+
+# Loki
+loki/data/
+
+# Secrets and credentials
+*.key
+*.pem
+secrets.yaml
+credentials.json
+.env
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Backup files
+*.bak
+*.backup
