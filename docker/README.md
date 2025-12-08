@@ -75,13 +75,6 @@ scrape_configs:
           domainname: '<서버명>'
 ```
 
-### 현재 모니터링 대상
-
-- **Demo 서버들**: demoA, demoB, demoC, demoD
-- **의료기관**: 강릉아산병원, 화순전남대병원
-- **DB 서버**: DB_Active, DB_Stanby, 백업서버
-- **기타**: DEAN, voice-emrs, core.puzzle-ai.com
-
 ## 📊 주요 기능
 
 - **실시간 시스템 모니터링**: CPU, 메모리, 디스크, 네트워크 사용량
