@@ -111,12 +111,21 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # 시스템 로그 수집 (선택 사항)
       - /var/log:/var/log:ro
+      # 호스트 시스템 메트릭 수집을 위한 마운트 (Node Exporter와 동일한 정확도)
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
     command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    environment:
+      # 호스트 시스템 메트릭을 정확하게 수집하기 위한 환경 변수
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+      - HOST_ROOT=/rootfs
     networks:
       - shared_net
     restart: unless-stopped
-    # 추가 권한 (필요시 활성화)
-    # privileged: true  # 시스템 메트릭 수집에 필요할 수 있음
+    # 호스트 네트워크 네임스페이스 사용 (네트워크 메트릭 정확도 향상)
+    # network_mode: host  # 필요시 활성화 (포트 충돌 주의)
 
 # ============================================================================
 # Volumes - 데이터 영속성

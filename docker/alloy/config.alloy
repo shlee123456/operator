@@ -101,14 +101,35 @@ loki.source.file "system_logs" {
 }
 
 // ============================================================================
-// Unix 시스템 메트릭 수집 (Node Exporter)
+// Unix 시스템 메트릭 수집 (Node Exporter 동일 기능)
 // ============================================================================
-// CPU, 메모리, 디스크, 네트워크 등 시스템 메트릭을 수집합니다
+// CPU, 메모리, 디스크, 네트워크 등 호스트 시스템의 메트릭을 수집합니다.
+// Node Exporter와 동일한 정확도로 메트릭을 수집하며, 별도의 Node Exporter 설치가 필요 없습니다.
+//
+// 주의: docker-compose.yml에서 다음 볼륨이 마운트되어야 합니다:
+//   - /proc:/host/proc:ro
+//   - /sys:/host/sys:ro
+//   - /:/rootfs:ro
+// 그리고 환경 변수가 설정되어야 합니다:
+//   - HOST_PROC=/host/proc
+//   - HOST_SYS=/host/sys
+//   - HOST_ROOT=/rootfs
 prometheus.exporter.unix "default" {
-  include_exporter_metrics = true  // exporter 자체의 메트릭도 포함
+  // 호스트 시스템의 /proc, /sys 경로 지정
+  // 이렇게 하면 컨테이너가 아닌 실제 호스트의 메트릭을 수집합니다
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/rootfs"
+
+  // exporter 자체의 메트릭도 포함 (디버깅 및 모니터링용)
+  include_exporter_metrics = true
+
+  // 수집할 컬렉터 설정 (필요에 따라 조정)
+  // 기본값: 모든 컬렉터 활성화
+  // disable_collectors = ["wifi", "powersupplyclass"]  // 불필요한 컬렉터 비활성화
 }
 
-// Unix 메트릭 스크래핑 및 전송
+// Unix 메트릭 스크래핑 및 Prometheus로 전송
 prometheus.scrape "unix" {
   targets    = prometheus.exporter.unix.default.targets
   forward_to = [prometheus.remote_write.default.receiver]

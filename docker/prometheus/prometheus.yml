@@ -20,42 +20,61 @@ global:
 # ============================================================================
 # 메트릭 수집 대상 설정
 # ============================================================================
+# 참고: 현재 로컬 호스트의 시스템 메트릭은 Alloy가 자동으로 수집합니다.
+#       Alloy의 prometheus.exporter.unix 컴포넌트가 Node Exporter 역할을 수행하여
+#       CPU, 메모리, 디스크, 네트워크 등의 메트릭을 Prometheus로 전송합니다.
+#       아래 설정들은 원격 서버 모니터링이 필요한 경우에만 사용하세요.
+# ============================================================================
+
 scrape_configs:
   # --------------------------------------------------------------------------
-  # Node Exporter: 서버의 시스템 메트릭 수집
+  # [예시] 원격 서버의 Node Exporter 메트릭 수집
   # --------------------------------------------------------------------------
-  # CPU, 메모리, 디스크, 네트워크 등 OS 레벨 메트릭을 수집합니다
-  # 각 서버에 node_exporter를 설치하고 9100 포트로 메트릭을 노출해야 합니다
-  - job_name: 'node_exporter'
-    static_configs:
-      # 첫 번째 서버
-      - targets: ['10.0.1.10:9100']
-        labels:
-          instance: 'server-1'      # 서버 식별자
-          domainname: 'example'     # 도메인 또는 환경 구분
+  # 다른 서버들을 모니터링하려면 각 서버에 Node Exporter를 설치하고
+  # 아래 주석을 해제하여 타겟을 추가하세요.
+  #
+  # - job_name: 'node_exporter'
+  #   static_configs:
+  #     # 원격 서버 1
+  #     - targets: ['10.0.1.10:9100']
+  #       labels:
+  #         instance: 'server-1'
+  #         domainname: 'example'
+  #         environment: 'production'
+  #
+  #     # 원격 서버 2
+  #     - targets: ['10.0.1.20:9100']
+  #       labels:
+  #         instance: 'server-2'
+  #         domainname: 'example'
+  #         environment: 'production'
 
-      # 두 번째 서버
-      - targets: ['10.0.1.20:9100']
-        labels:
-          instance: 'server-2'
-          domainname: 'example'
-
   # --------------------------------------------------------------------------
-  # 추가 수집 대상 예시 (필요시 활성화)
+  # [예시] 추가 수집 대상
   # --------------------------------------------------------------------------
-  # 애플리케이션 메트릭 수집
+  # 애플리케이션 메트릭 수집 (Spring Boot Actuator, Node.js 등)
   # - job_name: 'my-application'
   #   static_configs:
   #     - targets: ['app-server:8080']
   #       labels:
   #         env: 'production'
+  #         app: 'backend-api'
   #
-  # Docker 메트릭 수집
+  # Docker Engine 메트릭 수집
   # - job_name: 'docker'
   #   static_configs:
   #     - targets: ['docker-host:9323']
+  #
+  # MySQL Exporter
+  # - job_name: 'mysql'
+  #   static_configs:
+  #     - targets: ['mysql-exporter:9104']
   #
   # Kubernetes 메트릭 수집 (서비스 디스커버리)
   # - job_name: 'kubernetes-pods'
   #   kubernetes_sd_configs:
   #     - role: pod
+  #   relabel_configs:
+  #     - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+  #       action: keep
+  #       regex: true
