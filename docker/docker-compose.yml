@@ -1,64 +1,140 @@
-version: '3'
+# ============================================================================
+# Docker Compose Configuration for Monitoring Stack
+# ============================================================================
+# 이 파일은 Prometheus, Grafana, Loki, Alloy로 구성된 완전한 모니터링 스택을 정의합니다.
+#
+# 스택 구성:
+# - Prometheus: 메트릭 수집 및 저장
+# - Grafana: 시각화 및 대시보드
+# - Loki: 로그 수집 및 저장
+# - Alloy: 통합 observability 에이전트 (메트릭/로그 수집)
+#
+# 사용법:
+#   시작: docker-compose up -d
+#   중지: docker-compose down
+#   로그: docker-compose logs -f [service-name]
+# ============================================================================
 
 services:
+  # ==========================================================================
+  # Prometheus - 메트릭 모니터링 시스템
+  # ==========================================================================
+  # 시계열 데이터베이스로 메트릭을 수집, 저장, 조회합니다.
+  # Web UI: http://localhost:9090
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
     volumes:
+      # 설정 파일 마운트
       - ./prometheus:/etc/prometheus
+      # 데이터 영속성이 필요한 경우 아래 주석 해제
+      # - prometheus-data:/prometheus
     ports:
-      - "9090:9090"
+      - "9090:9090"  # Prometheus Web UI 및 API
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=30d'  # 데이터를 30일 동안 보존
-      - '--web.enable-remote-write-receiver'
+      - '--storage.tsdb.retention.time=30d'     # 데이터 보존 기간 (30일)
+      - '--web.enable-remote-write-receiver'    # Remote Write API 활성화 (Alloy용)
+      # 추가 옵션 (필요시 활성화)
+      # - '--web.enable-lifecycle'              # API를 통한 설정 리로드 허용
+      # - '--web.enable-admin-api'              # Admin API 활성화
     networks:
       - shared_net
+    restart: unless-stopped  # 컨테이너 자동 재시작
 
-
+  # ==========================================================================
+  # Grafana - 시각화 및 대시보드 플랫폼
+  # ==========================================================================
+  # 메트릭과 로그를 시각화하는 웹 인터페이스를 제공합니다.
+  # Web UI: http://localhost:3000 (admin/admin)
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
     environment:
+      # 관리자 비밀번호 (프로덕션에서는 반드시 변경하세요!)
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      # 서버 도메인 설정
       - GF_SERVER_DOMAIN=localhost
-      - GF_SERVER_ROOT_URL=https://localhost:3000/  # root URL 설정
+      - GF_SERVER_ROOT_URL=http://localhost:3000/
+      # 추가 환경 변수 (필요시 활성화)
+      # - GF_SECURITY_ADMIN_USER=admin         # 관리자 사용자명
+      # - GF_USERS_ALLOW_SIGN_UP=false         # 회원가입 비활성화
+      # - GF_AUTH_ANONYMOUS_ENABLED=true       # 익명 접근 허용
     ports:
-      - "3000:3000"
+      - "3000:3000"  # Grafana Web UI
     volumes:
+      # Grafana 데이터 영속성 (대시보드, 설정 등)
       - grafana-storage:/var/lib/grafana
+      # 데이터 소스 자동 프로비저닝 (Prometheus, Loki)
       - ./grafana/provisioning:/etc/grafana/provisioning
     networks:
       - shared_net
+    restart: unless-stopped
 
+  # ==========================================================================
+  # Loki - 로그 수집 시스템
+  # ==========================================================================
+  # Prometheus처럼 작동하는 로그 수집 시스템입니다.
+  # API: http://localhost:3100
   loki:
     image: grafana/loki:latest
     container_name: loki
     ports:
-      - "3100:3100"
+      - "3100:3100"  # Loki HTTP API
     volumes:
+      # 설정 파일 마운트
       - ./loki:/etc/loki
+      # 데이터 영속성이 필요한 경우 아래 주석 해제
+      # - loki-data:/tmp/loki
     command: -config.file=/etc/loki/loki.yml
     networks:
       - shared_net
+    restart: unless-stopped
 
+  # ==========================================================================
+  # Alloy - 통합 Observability 에이전트
+  # ==========================================================================
+  # Grafana의 통합 에이전트로 메트릭, 로그, 트레이스를 수집합니다.
+  # - Docker 컨테이너 로그 자동 수집
+  # - 시스템 메트릭 수집 (CPU, 메모리, 디스크 등)
+  # Web UI: http://localhost:12345
   alloy:
     image: grafana/alloy:latest
     container_name: alloy
     ports:
-      - "12345:12345"
+      - "12345:12345"  # Alloy Web UI 및 메트릭 엔드포인트
     volumes:
+      # Alloy 설정 파일
       - ./alloy:/etc/alloy
+      # Docker 소켓 마운트 (컨테이너 로그 수집용)
+      # 주의: 읽기 전용(ro)으로 마운트하여 보안 강화
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # 시스템 로그 수집 (선택 사항)
       - /var/log:/var/log:ro
     command: run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
     networks:
       - shared_net
+    restart: unless-stopped
+    # 추가 권한 (필요시 활성화)
+    # privileged: true  # 시스템 메트릭 수집에 필요할 수 있음
 
-
+# ============================================================================
+# Volumes - 데이터 영속성
+# ============================================================================
 volumes:
+  # Grafana 데이터 저장소 (대시보드, 사용자 설정 등)
   grafana-storage:
+  # 추가 볼륨 (필요시 활성화)
+  # prometheus-data:  # Prometheus 데이터 영속성
+  # loki-data:        # Loki 데이터 영속성
 
+# ============================================================================
+# Networks - 네트워크 설정
+# ============================================================================
 networks:
+  # 외부에서 생성된 네트워크 사용
+  # 사용 전 네트워크 생성 필요: docker network create shared_net
   shared_net:
     external: true
+    # 내부 네트워크를 사용하려면 아래로 변경
+    # driver: bridge

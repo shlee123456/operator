@@ -51,8 +51,6 @@ cd k8s
 kubectl apply -k .
 ```
 
-자세한 내용은 [k8s/README.md](k8s/README.md)를 참고하세요.
-
 **장점:**
 - 고가용성 및 확장성
 - 자동 복구 및 스케일링
@@ -150,40 +148,3 @@ scrape_configs:
    - 민감한 정보는 환경 변수나 Secret으로 관리하세요
    - 로그에 민감한 정보가 포함되지 않도록 주의하세요
 
-## 트러블슈팅
-
-### Docker 환경
-```bash
-# 로그 확인
-docker-compose logs -f [service-name]
-
-# 서비스 재시작
-docker-compose restart [service-name]
-```
-
-### Kubernetes 환경
-```bash
-# Pod 상태 확인
-kubectl get pods -n monitoring
-
-# 로그 확인
-kubectl logs -n monitoring [pod-name]
-
-# 서비스 재시작
-kubectl rollout restart deployment/[deployment-name] -n monitoring
-```
-
-## 기여하기
-
-이 프로젝트는 개인 학습 및 개발 목적으로 관리되고 있습니다.
-
-## 라이선스
-
-개인 프로젝트로 관리되며, 교육 및 참고 목적으로 사용 가능합니다.
-
-## 참고 자료
-
-- [Prometheus 공식 문서](https://prometheus.io/docs/)
-- [Grafana 공식 문서](https://grafana.com/docs/)
-- [Loki 공식 문서](https://grafana.com/docs/loki/)
-- [Alloy 공식 문서](https://grafana.com/docs/alloy/)

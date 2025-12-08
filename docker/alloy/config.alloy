@@ -1,51 +1,114 @@
-// Alloy configuration file for collecting metrics and logs
+// ============================================================================
+// Grafana Alloy Configuration
+// ============================================================================
+// Alloy는 Grafana의 통합 observability 에이전트로 메트릭, 로그, 트레이스를 수집합니다.
+// 이 설정 파일은 Docker 환경에서 컨테이너 로그와 시스템 메트릭을 수집하도록 구성되어 있습니다.
+// ============================================================================
 
-// Prometheus metrics collection
+// ============================================================================
+// Prometheus 메트릭 수집 설정
+// ============================================================================
+// 모니터링 스택 자체의 메트릭을 수집합니다 (self-monitoring)
 prometheus.scrape "default" {
+  // 수집 대상 엔드포인트 목록
   targets = [
-    {"__address__" = "prometheus:9090"},
-    {"__address__" = "grafana:3000"},
-    {"__address__" = "loki:3100"},
-    {"__address__" = "alloy:12345"},
+    {"__address__" = "prometheus:9090"},  // Prometheus 자체 메트릭
+    {"__address__" = "grafana:3000"},     // Grafana 메트릭
+    {"__address__" = "loki:3100"},        // Loki 메트릭
+    {"__address__" = "alloy:12345"},      // Alloy 자체 메트릭
   ]
+  // 수집한 메트릭을 Prometheus로 전송
   forward_to = [prometheus.remote_write.default.receiver]
 }
 
-// Remote write to Prometheus
+// ============================================================================
+// Prometheus Remote Write 설정
+// ============================================================================
+// 수집한 메트릭을 Prometheus에 원격으로 전송합니다
 prometheus.remote_write "default" {
   endpoint {
     url = "http://prometheus:9090/api/v1/write"
   }
 }
 
-// Log collection from Docker containers
-loki.source.docker "default" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = []
-  forward_to = [loki.write.default.receiver]
+// ============================================================================
+// Docker 컨테이너 자동 발견
+// ============================================================================
+// Docker 소켓을 통해 실행 중인 모든 컨테이너를 자동으로 발견합니다
+// 새로운 컨테이너가 시작되면 자동으로 모니터링 대상에 추가됩니다
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"  // Docker 소켓 경로
 }
 
-// Write logs to Loki
+// ============================================================================
+// Docker 컨테이너 로그 수집
+// ============================================================================
+// 발견된 모든 Docker 컨테이너의 stdout/stderr 로그를 수집합니다
+loki.source.docker "default" {
+  host       = "unix:///var/run/docker.sock"           // Docker 소켓 연결
+  targets    = discovery.docker.containers.targets     // 자동 발견된 컨테이너 목록
+  forward_to = [loki.write.default.receiver]           // Loki로 로그 전송
+  relabel_rules = loki.relabel.docker.rules            // 라벨 재지정 규칙 적용
+}
+
+// ============================================================================
+// Docker 로그 라벨 재지정 규칙
+// ============================================================================
+// Docker 메타데이터를 Loki 라벨로 변환하여 로그 검색과 필터링을 용이하게 합니다
+loki.relabel "docker" {
+  forward_to = [loki.write.default.receiver]
+
+  // 컨테이너 이름을 라벨로 추가 (예: /my-app)
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container_name"
+  }
+
+  // 컨테이너 ID를 라벨로 추가
+  rule {
+    source_labels = ["__meta_docker_container_id"]
+    target_label  = "container_id"
+  }
+
+  // 로그 스트림 타입을 라벨로 추가 (stdout/stderr)
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+// ============================================================================
+// Loki 로그 전송 설정
+// ============================================================================
+// 수집한 모든 로그를 Loki 서버로 전송합니다
 loki.write "default" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"
   }
 }
 
-// System logs collection
+// ============================================================================
+// 시스템 로그 파일 수집 (선택 사항)
+// ============================================================================
+// 호스트 시스템의 로그 파일을 직접 읽어서 수집합니다
+// 주의: 컨테이너에 /var/log가 마운트되어야 합니다
 loki.source.file "system_logs" {
   targets = [
-    {__path__ = "/var/log/*.log"},
-    {__path__ = "/var/log/syslog"},
+    {__path__ = "/var/log/*.log"},   // /var/log 디렉토리의 모든 .log 파일
+    {__path__ = "/var/log/syslog"},  // syslog 파일
   ]
   forward_to = [loki.write.default.receiver]
 }
 
-// Process exporter for system metrics
+// ============================================================================
+// Unix 시스템 메트릭 수집 (Node Exporter)
+// ============================================================================
+// CPU, 메모리, 디스크, 네트워크 등 시스템 메트릭을 수집합니다
 prometheus.exporter.unix "default" {
-  include_exporter_metrics = true
+  include_exporter_metrics = true  // exporter 자체의 메트릭도 포함
 }
 
+// Unix 메트릭 스크래핑 및 전송
 prometheus.scrape "unix" {
   targets    = prometheus.exporter.unix.default.targets
   forward_to = [prometheus.remote_write.default.receiver]
