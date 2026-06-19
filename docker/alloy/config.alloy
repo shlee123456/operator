@@ -41,6 +41,73 @@ discovery.docker "containers" {
 }
 
 // ============================================================================
+// 애플리케이션 메트릭 자동 수집 (라벨 기반 서비스 디스커버리)
+// ============================================================================
+// 대상 프로젝트의 컨테이너에 아래 라벨을 붙이면 메트릭을 자동으로 수집합니다.
+// 별도로 prometheus.yml을 수정할 필요가 없으며, 컨테이너가 뜨고 내려갈 때마다
+// 수집 대상이 자동으로 갱신됩니다.
+//
+// 대상 컨테이너에 붙여야 하는 라벨 (docker-compose.yml의 labels 또는 docker run --label):
+//   - "prometheus.io/scrape=true"     # (필수) 수집 활성화
+//   - "prometheus.io/port=8080"        # (필수) 메트릭 포트
+//   - "prometheus.io/path=/metrics"    # (선택) 메트릭 경로, 기본값 /metrics
+//
+// 주의: 대상 컨테이너는 Alloy와 동일한 네트워크(shared_net)에 연결되어야
+//       컨테이너 IP로 접근이 가능합니다.
+discovery.relabel "app_metrics" {
+  targets = discovery.docker.containers.targets
+
+  // 1) prometheus.io/scrape=true 라벨이 있는 컨테이너만 유지
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_io_scrape"]
+    regex         = "true"
+    action        = "keep"
+  }
+
+  // 2) shared_net 네트워크의 타겟만 유지 (멀티 네트워크 시 중복 타겟 방지)
+  rule {
+    source_labels = ["__meta_docker_network_name"]
+    regex         = "shared_net"
+    action        = "keep"
+  }
+
+  // 3) 메트릭 경로 설정 (prometheus.io/path 라벨, 없으면 이후 기본값 적용)
+  rule {
+    source_labels = ["__meta_docker_container_label_prometheus_io_path"]
+    regex         = "(.+)"
+    target_label  = "__metrics_path__"
+  }
+
+  // 4) 수집 주소를 컨테이너IP:라벨포트 로 재구성
+  rule {
+    source_labels = ["__meta_docker_network_ip", "__meta_docker_container_label_prometheus_io_port"]
+    separator     = ":"
+    regex         = "(.+):(.+)"
+    replacement   = "$1:$2"
+    target_label  = "__address__"
+  }
+
+  // 5) 컨테이너 이름을 instance/job 라벨로 부여 (앞의 / 제거)
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "instance"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "job"
+  }
+}
+
+// 라벨로 선별된 애플리케이션 타겟을 스크랩하여 Prometheus로 전송
+prometheus.scrape "app_metrics" {
+  targets         = discovery.relabel.app_metrics.output
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
+// ============================================================================
 // Docker 컨테이너 로그 수집
 // ============================================================================
 // 발견된 모든 Docker 컨테이너의 stdout/stderr 로그를 수집합니다
@@ -88,17 +155,29 @@ loki.write "default" {
 }
 
 // ============================================================================
-// 시스템 로그 파일 수집 (선택 사항)
+// 시스템 로그 파일 수집 (선택 사항 - 기본 비활성화)
 // ============================================================================
-// 호스트 시스템의 로그 파일을 직접 읽어서 수집합니다
-// 주의: 컨테이너에 /var/log가 마운트되어야 합니다
-loki.source.file "system_logs" {
-  targets = [
-    {__path__ = "/var/log/*.log"},   // /var/log 디렉토리의 모든 .log 파일
-    {__path__ = "/var/log/syslog"},  // syslog 파일
-  ]
-  forward_to = [loki.write.default.receiver]
-}
+// 호스트 시스템의 로그 파일을 직접 읽어서 수집합니다.
+//
+// 기본 비활성화 이유:
+//   1) 컨테이너 로그는 위의 loki.source.docker로 이미 자동 수집됨 (중복)
+//   2) 로그 경로가 OS/배포판마다 다름
+//      - Debian/Ubuntu: /var/log/syslog
+//      - RHEL/CentOS:    /var/log/messages
+//      - macOS:          구조 상이 (Docker Desktop에서는 VM 경로)
+//   3) 경로가 없으면 Alloy가 error 로그를 반복 출력하여 노이즈 발생
+//
+// Linux 호스트에서 시스템 로그까지 수집하려면 아래 주석을 해제하고,
+// 사용 중인 배포판에 맞게 __path__를 조정한 뒤 alloy를 재시작하세요.
+// (docker-compose.yml에 이미 /var/log:/var/log:ro 마운트는 되어 있습니다)
+//
+// loki.source.file "system_logs" {
+//   targets = [
+//     {__path__ = "/var/log/syslog"},   // Debian/Ubuntu
+//     // {__path__ = "/var/log/messages"}, // RHEL/CentOS
+//   ]
+//   forward_to = [loki.write.default.receiver]
+// }
 
 // ============================================================================
 // Unix 시스템 메트릭 수집 (Node Exporter 동일 기능)

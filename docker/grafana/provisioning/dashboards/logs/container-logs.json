@@ -1,0 +1,81 @@
+{
+  "id": null,
+  "uid": "logs-container-logs",
+  "title": "컨테이너 로그",
+  "tags": ["logs", "loki"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "templating": {
+    "list": [
+      {
+        "name": "container",
+        "label": "컨테이너",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": { "label": "container_name", "type": 1 },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".+",
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "search",
+        "label": "검색어",
+        "type": "textbox",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "로그 발생량 (컨테이너별, 5분 합계)",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" } } } },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (container_name) (count_over_time({container_name=~\"$container\"} |~ \"(?i)$search\" [5m]))",
+          "legendFormat": "{{container_name}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "title": "에러 로그 발생량 (error/warn/fail, 5분 합계)",
+      "type": "timeseries",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars" } } },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by (container_name) (count_over_time({container_name=~\"$container\"} |~ \"(?i)(error|warn|fail|exception|panic)\" [5m]))",
+          "legendFormat": "{{container_name}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 }
+    },
+    {
+      "id": 3,
+      "title": "로그 스트림",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "wrapLogMessage": true, "enableLogDetails": true, "dedupStrategy": "none", "sortOrder": "Descending" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{container_name=~\"$container\"} |~ \"(?i)$search\"",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 16 }
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s"
+}

@@ -1,49 +1,73 @@
 {
-  "dashboard": {
-    "id": null,
-    "title": "시스템 개요",
-    "tags": ["infrastructure", "system"],
-    "timezone": "browser",
-    "panels": [
-      {
-        "id": 1,
-        "title": "CPU 사용률",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-            "refId": "A"
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 0
+  "id": null,
+  "uid": "infra-system-overview",
+  "title": "시스템 개요",
+  "tags": ["infrastructure", "system"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU 사용률",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "refId": "A"
         }
-      },
-      {
-        "id": 2,
-        "title": "메모리 사용률",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
-            "refId": "A"
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 0
-        }
-      }
-    ],
-    "time": {
-      "from": "now-1h",
-      "to": "now"
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
     },
-    "refresh": "5s"
-  }
+    {
+      "id": 2,
+      "title": "메모리 사용률",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "id": 3,
+      "title": "루트 디스크 사용률",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "(1 - (node_filesystem_avail_bytes{mountpoint=\"/rootfs\",fstype!=\"tmpfs\"} / node_filesystem_size_bytes{mountpoint=\"/rootfs\",fstype!=\"tmpfs\"})) * 100",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
+    },
+    {
+      "id": 4,
+      "title": "CPU 사용률 추이",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "100 - (avg by (instance) (irate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "{{instance}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "5s"
 }

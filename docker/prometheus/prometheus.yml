@@ -23,7 +23,21 @@ global:
 # 참고: 현재 로컬 호스트의 시스템 메트릭은 Alloy가 자동으로 수집합니다.
 #       Alloy의 prometheus.exporter.unix 컴포넌트가 Node Exporter 역할을 수행하여
 #       CPU, 메모리, 디스크, 네트워크 등의 메트릭을 Prometheus로 전송합니다.
-#       아래 설정들은 원격 서버 모니터링이 필요한 경우에만 사용하세요.
+#
+# [애플리케이션 메트릭 수집 - 권장 방법]
+#   대상 앱 컨테이너에 prometheus.io/* 라벨을 붙이면 Alloy가 자동으로 수집합니다.
+#   (alloy/config.alloy의 discovery.relabel "app_metrics" 참조)
+#   이 경우 아래 prometheus.yml을 수정할 필요가 없습니다.
+#
+#   대상 컨테이너 라벨 예시 (docker-compose.yml):
+#     labels:
+#       - "prometheus.io/scrape=true"
+#       - "prometheus.io/port=8080"
+#       - "prometheus.io/path=/metrics"   # 선택
+#   그리고 networks에 shared_net을 추가해야 합니다.
+#
+# [정적 타겟 수집 - 보조 방법]
+#   라벨을 쓸 수 없는 원격 서버/외부 엔드포인트는 아래 scrape_configs에 직접 추가하세요.
 # ============================================================================
 
 scrape_configs:

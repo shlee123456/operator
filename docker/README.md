@@ -1,135 +1,109 @@
-# Prometheus & Grafana 모니터링 시스템
+# 통합 모니터링 스택 (Prometheus · Grafana · Loki · Alloy)
 
-Docker Compose를 사용하여 Prometheus와 Grafana 기반의 서버 모니터링 시스템을 구축하는 프로젝트입니다.
+Docker Compose 기반의 즉시 적용 가능한 모니터링 스택입니다.
+**다른 프로젝트에 복사해 넣은 뒤, 대상 컨테이너에 라벨만 붙이면 메트릭과 로그가 자동으로 수집**됩니다.
 
-## 🎯 프로젝트 개요
+## 🎯 구성 요소
 
-이 프로젝트는 여러 서버의 시스템 메트릭을 실시간으로 수집하고 시각화하기 위한 모니터링 솔루션입니다.
+- **Prometheus**: 메트릭 수집 및 저장 (보존 30일)
+- **Grafana**: 시각화 및 대시보드 (데이터소스·대시보드 자동 프로비저닝)
+- **Loki**: 로그 수집 및 저장
+- **Alloy**: 통합 에이전트 — 호스트 메트릭 수집 + Docker 컨테이너 로그 자동 수집 + 라벨 기반 앱 메트릭 수집
 
-### 주요 구성 요소
+## ⚠️ 플랫폼 전제 (중요)
 
-- **Prometheus**: 메트릭 수집 및 저장
-- **Grafana**: 데이터 시각화 및 대시보드
-- **Node Exporter**: 각 서버의 시스템 메트릭 수집 (별도 설치 필요)
+호스트 시스템 메트릭 수집(`prometheus.exporter.unix`, `/proc`·`/sys`·`/rootfs` 마운트)은 **Linux 호스트 기준**입니다.
 
-## 📁 프로젝트 구조
-
-```
-prometheus-grafana/
-├── docker-compose.yml      # Docker Compose 설정 파일
-├── prometheus/
-│   └── prometheus.yml      # Prometheus 설정 파일
-└── README.md              # 프로젝트 문서
-```
+- **Linux 서버**: 호스트 메트릭이 정확하게 수집됩니다. (권장 배포 환경)
+- **macOS / Windows (Docker Desktop)**: `/proc`·`/sys`가 호스트가 아닌 내부 리눅스 VM을 가리키므로, 수집되는 호스트 메트릭은 Mac/Windows 본체가 아닌 VM 기준입니다. 컨테이너 로그·앱 메트릭 수집은 정상 동작하므로 로컬 개발·테스트 용도로는 문제없습니다.
 
 ## 🚀 빠른 시작
 
-### 사전 요구사항
+```bash
+# 1) 환경 변수 설정 (선택, 기본값으로도 동작)
+cp .env.example .env        # 필요 시 Grafana 비밀번호·이미지 버전 수정
 
-- Docker
-- Docker Compose
-- 모니터링 대상 서버에 Node Exporter 설치
+# 2) 공용 네트워크 생성 (최초 1회)
+docker network create shared_net
 
-### 설치 및 실행
+# 3) 스택 기동
+docker compose up -d
+```
 
-1. **저장소 클론**
-   ```bash
-   git clone <repository-url>
-   cd prometheus-grafana
-   ```
+기동 후 접속:
 
-2. **Docker 네트워크 생성** (처음 실행 시)
-   ```bash
-   docker network create shared_net
-   ```
+| 서비스 | URL | 비고 |
+|--------|-----|------|
+| Grafana | http://localhost:3000 | 기본 admin / admin (.env로 변경 가능) |
+| Prometheus | http://localhost:9090 | |
+| Loki | http://localhost:3100 | HTTP API |
+| Alloy | http://localhost:12345 | 에이전트 상태 UI |
 
-3. **서비스 시작**
-   ```bash
-   docker-compose up -d
-   ```
+## 📈 다른 프로젝트에 적용하는 법
 
-## 🌐 접속 정보
+### 로그 — 추가 설정 불필요
+Alloy가 Docker 소켓을 통해 **실행 중인 모든 컨테이너의 stdout/stderr 로그를 자동 수집**하여 Loki로 보냅니다.
+대상 프로젝트의 컨테이너가 떠 있기만 하면 Grafana의 **"로그 분석 > 컨테이너 로그"** 대시보드에서 바로 확인됩니다.
 
-### Prometheus
-- **URL**: http://localhost:9090
-- **설명**: 메트릭 수집 상태 확인 및 쿼리 테스트
-
-### Grafana
-- **URL**: http://localhost:3000
-- **기본 계정**: admin / admin
-- **설명**: 대시보드를 통한 데이터 시각화
-
-## ⚙️ 설정
-
-### Prometheus 설정
-
-`prometheus/prometheus.yml` 파일에서 모니터링 대상 서버를 설정합니다.
+### 애플리케이션 메트릭 — 라벨만 추가
+대상 프로젝트의 `docker-compose.yml`에서 메트릭을 노출하는 컨테이너에 라벨을 붙이고, `shared_net`에 연결합니다.
 
 ```yaml
-scrape_configs:
-  - job_name: 'node_exporter'
-    static_configs:
-      - targets: ['<서버IP>:9100']
-        labels:
-          instance: '<서버IP>'
-          domainname: '<서버명>'
+services:
+  my-app:
+    image: my-app:latest
+    labels:
+      - "prometheus.io/scrape=true"   # (필수) 수집 활성화
+      - "prometheus.io/port=8080"      # (필수) 메트릭 포트
+      - "prometheus.io/path=/metrics"  # (선택) 기본값 /metrics
+    networks:
+      - shared_net
+
+networks:
+  shared_net:
+    external: true
 ```
 
-## 📊 주요 기능
+이렇게만 하면 Alloy가 자동으로 발견해 수집하며, Grafana **"애플리케이션 모니터링 > 수집 대상 상태"** 대시보드에서 UP/DOWN과 수집 상태를 확인할 수 있습니다. `prometheus.yml`은 수정할 필요가 없습니다.
 
-- **실시간 시스템 모니터링**: CPU, 메모리, 디스크, 네트워크 사용량
-- **알림 시스템**: 임계값 초과 시 알림 (별도 설정 필요)
-- **데이터 보존**: 30일간 메트릭 데이터 저장
-- **멀티 서버 관리**: 여러 서버를 통합 모니터링
+> 라벨을 쓸 수 없는 원격 서버/외부 엔드포인트는 `prometheus/prometheus.yml`의 `scrape_configs`에 정적 타겟으로 직접 추가하세요.
 
-## 🔧 유지보수
+## 📊 기본 제공 대시보드
 
-### 서비스 관리
+| 폴더 | 대시보드 | 데이터소스 |
+|------|----------|-----------|
+| 인프라 모니터링 | 시스템 개요 (CPU/메모리/디스크) | Prometheus |
+| 애플리케이션 모니터링 | 수집 대상 상태 (UP/DOWN, 수집 시간) | Prometheus |
+| 로그 분석 | 컨테이너 로그 (발생량/에러/스트림, 컨테이너 필터) | Loki |
+
+## 🔧 버전 관리
+
+이미지 버전은 `latest`가 아닌 고정 버전을 사용합니다(재현성). 변경은 `.env`에서:
+
+```dotenv
+PROMETHEUS_VERSION=v3.1.0
+GRAFANA_VERSION=11.4.0
+LOKI_VERSION=3.3.2
+ALLOY_VERSION=v1.5.1
+```
+
+## 🛠️ 운영 명령어
 
 ```bash
-# 서비스 중지
-docker-compose down
-
-# 서비스 재시작
-docker-compose restart
-
-# 로그 확인
-docker-compose logs -f
+docker compose up -d                 # 기동
+docker compose down                  # 중지
+docker compose logs -f alloy         # 특정 서비스 로그
+docker compose restart prometheus    # 설정 변경 후 재시작
+docker network create shared_net     # 네트워크 최초 생성
 ```
 
-### 데이터 관리
+## 💾 데이터 영속성
 
-- Prometheus 데이터는 30일 후 자동 삭제됩니다
-- Grafana 데이터는 `grafana-storage` 볼륨에 영구 저장됩니다
+- Grafana: `grafana-storage` 볼륨에 영구 저장
+- Prometheus / Loki: 기본은 컨테이너 내부 (영속화하려면 `docker-compose.yml`의 볼륨 주석 해제)
 
-## 📝 추가 설정
+## 🧩 문제 해결
 
-### Node Exporter 설치 (모니터링 대상 서버)
-
-각 모니터링 대상 서버에 Node Exporter를 설치해야 합니다:
-
-```bash
-# 다운로드 및 설치
-wget https://github.com/prometheus/node_exporter/releases/download/v1.6.1/node_exporter-1.6.1.linux-amd64.tar.gz
-tar xvfz node_exporter-1.6.1.linux-amd64.tar.gz
-sudo mv node_exporter-1.6.1.linux-amd64/node_exporter /usr/local/bin/
-
-# 서비스로 등록
-sudo systemctl enable node_exporter
-sudo systemctl start node_exporter
-```
-
-### Grafana 대시보드
-
-1. Grafana에 로그인 후 Data Source 추가
-2. Prometheus를 Data Source로 설정 (http://prometheus:9090)
-3. 대시보드 템플릿 import 또는 커스텀 대시보드 생성
-
-### 로그 확인
-
-```bash
-# 특정 서비스 로그
-docker-compose logs prometheus
-docker-compose logs grafana
-```
-
+- **`network shared_net not found`**: `docker network create shared_net` 실행
+- **앱 메트릭이 안 잡힘**: 대상 컨테이너가 `shared_net`에 연결됐는지, `prometheus.io/scrape=true`와 `prometheus.io/port`가 정확한지 확인. Alloy UI(:12345)의 `discovery.relabel "app_metrics"` 출력 타겟 확인
+- **포트 충돌**: `lsof -i :3000` 등으로 확인 후 `docker-compose.yml`의 포트 매핑 변경

@@ -1,0 +1,106 @@
+{
+  "id": null,
+  "uid": "app-scrape-targets",
+  "title": "애플리케이션 수집 대상 상태",
+  "tags": ["application", "scrape"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "정상(UP) 대상 수",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(up)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 }
+    },
+    {
+      "id": 2,
+      "title": "다운(DOWN) 대상 수",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] } } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "count(up == 0) or vector(0)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 }
+    },
+    {
+      "id": 3,
+      "title": "평균 수집 소요시간",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "avg(scrape_duration_seconds)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 }
+    },
+    {
+      "id": 4,
+      "title": "수집 대상 상태 (job / instance)",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Value" },
+            "properties": [
+              { "id": "displayName", "value": "상태" },
+              { "id": "mappings", "value": [ { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } } ] },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        { "id": "labelsToFields", "options": {} },
+        { "id": "organize", "options": { "excludeByName": { "Time": true, "__name__": true } } }
+      ],
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "up",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 6 }
+    },
+    {
+      "id": 5,
+      "title": "수집 소요시간 추이",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "scrape_duration_seconds",
+          "legendFormat": "{{job}} / {{instance}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 }
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" },
+  "refresh": "10s"
+}

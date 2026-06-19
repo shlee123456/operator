@@ -44,3 +44,10 @@ temp/
 # Backup files
 *.bak
 *.backup
+
+# Claude context files (local session history)
+.context/
+
+# 단, Grafana '로그 분석' 대시보드 폴더는 위의 logs/ 무시 규칙에서 제외하고 추적
+!docker/grafana/provisioning/dashboards/logs/
+!docker/grafana/provisioning/dashboards/logs/*.json
